@@ -57,7 +57,7 @@ The source code can be found at https://github.com/kiwix/kiwix-js
 
 ## Unit tests
 
-Unit tests can be run by opening tests.html file on Firefox or Edge (or Chromium/Chrome with some tweaks).
+Unit tests can be run by opening `tests/index.html` file in Firefox, Edge, or Chromium/Chrome.
 
 ## Public releases and nightly builds
 

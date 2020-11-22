@@ -1,30 +1,56 @@
-sudo : true
-dist : trusty
+os: linux
 language: node_js
-node_js:
-  - "node"
+node_js: "14"
+
 addons:
-  sauce_connect: true
   ssh_known_hosts: download.kiwix.org
-before_script:
-    - npm install nightwatch http-server
-    - "./node_modules/http-server/bin/http-server . &"
-script:
-    # The free account on Sauce does not allow more than 5 concurrent sessions (including the main one)
-    # So we separate the recent and old browsers in order to respect this limit.
-    # NB : latest edge should be added to this list when Microsoft releases the new Edge based on Chromium
-    - "./node_modules/nightwatch/bin/nightwatch -c nightwatch.js --env firefox,chrome"
-    - "./node_modules/nightwatch/bin/nightwatch -c nightwatch.js --env edge40,edge44"
-    - "./node_modules/nightwatch/bin/nightwatch -c nightwatch.js --env firefox45,chrome58,ie11"
-    - pkill node || echo "Node process not running (anymore)"
-deploy:
-    - provider: script
-      # Nightly builds (launched by cron)
-      script: sudo apt-get update -q && sudo apt-get --yes install click click-reviewers-tools && ./scripts/setup_travis_env.sh && DISPLAY=:99.0 ./scripts/create_all_packages.sh
-      on:
-          condition: ( "$TRAVIS_EVENT_TYPE" = "cron" )
-    - provider: script
-      # Generation of packages for public releases (launched by a tag)
-      script: sudo apt-get update -q && sudo apt-get --yes install click click-reviewers-tools && ./scripts/setup_travis_env.sh && DISPLAY=:99.0 ./scripts/create_all_packages.sh -t -v ${TRAVIS_TAG}
-      on:
-          tags: true
+
+jobs:
+  fast_finish: true
+  include:
+
+    - stage: "Local testing"
+      # This stage always runs, even for PRs from forks.
+      # It requires no credentials, and uses latest browsers on Linux within CI.
+      # This uses the standard `npm test` command that people can also easily
+      # run locally. That is why we don't skip it, even if credentials are
+      # available, to verify these configurations also.
+      node_js: "10"
+      addons:
+        firefox: latest-esr
+        chrome: stable
+      script: npm test
+
+    - stage: "Cross-browser testing"
+      # This stage only runs when saucelabs credentials are available
+      # (e.g. direct pushes and local non-fork PRs)
+      # https://docs.travis-ci.com/user/environment-variables/
+      # https://docs.travis-ci.com/user/conditions-v1
+      if: NOT fork
+      addons:
+        sauce_connect: true
+      script:
+        - npm run test-unit-saucelabs
+        - "./node_modules/.bin/http-server . &"
+        - sleep 2
+        - curl "http://localhost:8080" | head
+        # The free account on Sauce does not allow more than 5 concurrent sessions (including the main one)
+        # So we separate the recent and old browsers in order to respect this limit.
+        # REMINDER: Keep this list in sync with the Unit tests, in tests/karma.conf.saucelabs.js
+        # NB : latest edge should be added to this list when Microsoft releases the new Edge based on Chromium
+        - "./node_modules/.bin/nightwatch -c nightwatch.js --env firefox,chrome"
+        - "./node_modules/.bin/nightwatch -c nightwatch.js --env edge40,edge44"
+        - "./node_modules/.bin/nightwatch -c nightwatch.js --env firefox45,chrome58,ie11"
+        - pkill node || echo "Node process not running (anymore)"
+
+    # Nightly builds (launched by cron)
+    - stage: "Deploy: Create nightly packages"
+      if: (type IN (cron)) AND NOT fork
+      install: sudo apt-get update -q && sudo apt-get --yes install click click-reviewers-tools
+      script: ./scripts/setup_travis_env.sh && DISPLAY=:99.0 ./scripts/create_all_packages.sh
+
+    # Generation of packages for public releases (launched by a tag)
+    - stage: "Deploy: Create release packages"
+      if: (type = push) AND (tag IS present) AND NOT fork
+      install: sudo apt-get update -q && sudo apt-get --yes install click click-reviewers-tools
+      script: ./scripts/setup_travis_env.sh && DISPLAY=:99.0 ./scripts/create_all_packages.sh -t -v ${TRAVIS_TAG}
