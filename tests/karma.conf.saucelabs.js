@@ -53,9 +53,9 @@ module.exports = function (config) {
 
     // REMINDER: Keep this list in sync with the UI tests, in nightwatch.js and .travis.yml.
     browsers: [
-      // latest edge should be added when Microsoft releases the new Edge based on Chromium
       'firefox',
       'chrome',
+      'edge',
       'edge40',
       'edge44',
       'firefox45',
