@@ -1160,7 +1160,7 @@ define(['jquery', 'zimArchiveLoader', 'uiUtil', 'settingsStore','abstractFilesys
                 // Line below was inserted to prevent the spinner being hidden, possibly by an async function, when pressing the Random button in quick succession
                 // TODO: Investigate whether it is really an async issue or whether there is a rogue .hide() statement in the chain
                 $("#searchingArticles").show();
-                selectedArchive.readUtf8File(dirEntry, displayArticleContentInIframe);
+                selectedArchive.readUtf8File(dirEntry, displayArticleContentInContainer);
             }
         }
     }
@@ -1247,7 +1247,7 @@ define(['jquery', 'zimArchiveLoader', 'uiUtil', 'settingsStore','abstractFilesys
      * @param {DirEntry} dirEntry
      * @param {String} htmlArticle
      */
-    function displayArticleContentInIframe(dirEntry, htmlArticle) {
+    function displayArticleContentInContainer(dirEntry, htmlArticle) {
         if(! isDirEntryExpectedToBeDisplayed(dirEntry)){
             return;
         }		
@@ -1271,12 +1271,12 @@ define(['jquery', 'zimArchiveLoader', 'uiUtil', 'settingsStore','abstractFilesys
         $('#downloadAlert').hide();
 
         var windowLoaded = function() {
+            articleContainer.document.title = dirEntry.title;
             articleContainer.onload = function(){};
             $("#articleList").empty();
             $('#articleListHeaderMessage').empty();
             $('#articleListWithHeader').hide();
             $("#prefix").val("");
-            
             articleDocument = articleContainer.document.documentElement;
             
             if (!articleDocument && window.location.protocol === 'file:') {
@@ -1288,7 +1288,7 @@ define(['jquery', 'zimArchiveLoader', 'uiUtil', 'settingsStore','abstractFilesys
             }
             
             // Inject the new article's HTML into the iframe
-            articleDocument.innerHTML = htmlArticle;
+            // articleDocument.innerHTML = htmlArticle;
             
             var docBody = articleDocument.getElementsByTagName('body');
             docBody = docBody ? docBody[0] : null;
@@ -1316,20 +1316,28 @@ define(['jquery', 'zimArchiveLoader', 'uiUtil', 'settingsStore','abstractFilesys
         };
 
         // Load the blank article to clear the iframe (NB iframe onload event runs *after* this)
-        if (!articleContainer) {
-            articleContainer = window.open('article.html', '_blank');
-            // We can't use the onload event with IE11 or Edge, so we have to check manually that the document has loaded
-            (function checkLoaded () {
-                var body = articleContainer.document.getElementsByTagName('body');
-                if (!body[0]) {
-                    setTimeout(checkLoaded, 50);
-                } else {
-                    windowLoaded();
-                }
-            })();
-        } else {
-            windowLoaded();
+        
+        if (!articleContainer || articleContainer.closed) {
+            articleContainer = window.open('article.html');
         }
+        articleContainer.document.open('text/html', 'replace');
+        articleContainer.document.write("<!DOCTYPE html>"); // Ensures browsers parse iframe in Standards mode
+        articleContainer.document.write(htmlArticle);
+        articleContainer.document.title = dirEntry.title;
+        articleContainer.document.close();
+        // We can't use the onload event with IE11 or Edge for external windows, so we have to check manually that the document has loaded
+        (function checkLoaded () {
+            var body = articleContainer.document.getElementsByTagName('body');
+            if (!body[0]) {
+                setTimeout(checkLoaded, 100);
+            } else {
+                articleContainer.document.title = dirEntry.title; 
+                windowLoaded();
+            }
+        })();
+        // } else {
+        //     windowLoaded();
+        // }
 
         // Calculate the current article's ZIM baseUrl to use when processing relative links
         var baseUrl = dirEntry.namespace + '/' + dirEntry.url.replace(/[^/]+$/, '');
@@ -1391,7 +1399,7 @@ define(['jquery', 'zimArchiveLoader', 'uiUtil', 'settingsStore','abstractFilesys
         
         function loadImagesJQuery() {
             // Make an array from the images that need to be processed
-            var images = Array.prototype.slice.call(iframeArticleContent.contentDocument.querySelectorAll('img[data-kiwixurl]'));
+            var images = Array.prototype.slice.call(articleDocument.querySelectorAll('img[data-kiwixurl]'));
             // This ensures cancellation of image extraction if the user navigates away from the page before extraction has finished
             images.owner = expectedArticleURLToBeDisplayed;
             // DEV: This self-invoking function is recursive, calling itself only when an image has been fully processed into a
