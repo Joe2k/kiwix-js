@@ -1387,13 +1387,6 @@ define(['jquery', 'zimArchiveLoader', 'uiUtil', 'settingsStore','abstractFilesys
                     // Add an onclick event to extract this article or file from the ZIM
                     // instead of following the link
                     anchor.setAttribute('href', '#');
-                    var openNewWindow = function() {
-                        // We open the window immediately so that it is a direct result of user action (click)
-                        // and we'll populate it later - this avoids popup blockers
-                        articleContainer = window.open('article.html', '_blank');
-                        params.target = 'window';
-                        articleContainer.kiwixType = params.target;
-                    };
                     var kiwixTarget = params.target;
                     var thisWindow = articleContainer;
                     var touchEnded = true;
@@ -1411,9 +1404,7 @@ define(['jquery', 'zimArchiveLoader', 'uiUtil', 'settingsStore','abstractFilesys
                     anchor.addEventListener('contextmenu', function (e) {
                         if (!params.rightClickOpensTab) return;
                         e.preventDefault();
-                        openNewWindow();
-                        var zimUrl = uiUtil.deriveZimUrlFromRelativeUrl(uriComponent, baseUrl);
-                        goToArticle(zimUrl, downloadAttrValue, contentType);
+                        anchor.click();
                     });
                     anchor.addEventListener('click', function (e) {
                         e.preventDefault();
@@ -1421,7 +1412,11 @@ define(['jquery', 'zimArchiveLoader', 'uiUtil', 'settingsStore','abstractFilesys
                         params.target = kiwixTarget;
                         articleContainer = thisWindow;
                         if (e.ctrlKey || e.metaKey || !touchEnded || e.which === 2 || e.button === 4) {
-                            openNewWindow();
+                            // We open the window immediately so that it is a direct result of user action (click)
+                            // and we'll populate it later - this avoids popup blockers
+                            articleContainer = window.open('article.html', '_blank');
+                            params.target = 'window';
+                            articleContainer.kiwixType = params.target;;
                         }
                         var zimUrl = uiUtil.deriveZimUrlFromRelativeUrl(uriComponent, baseUrl);
                         goToArticle(zimUrl, downloadAttrValue, contentType);
